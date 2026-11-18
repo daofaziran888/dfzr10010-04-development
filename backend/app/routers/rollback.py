@@ -6,6 +6,7 @@ from typing import Any
 from fastapi import APIRouter, HTTPException, Query
 
 from app.schemas import ActionResult, EntryPayload, PageResult
+from app.services.rehearsal import rehearsal_service
 from app.services.rollback import RollbackService
 
 router = APIRouter(prefix="/api/rollback", tags=["数据回滚恢复"])
@@ -28,6 +29,34 @@ def list_entries(
         raise HTTPException(status_code=400, detail="每页最多 200 条，请缩小分页范围")
     items, total = service.list_entries(keyword=keyword, status=status, page=page, size=size)
     return PageResult(items=items, total=total, page=page, size=size)
+
+
+@router.get("/rehearsals", response_model=dict)
+def list_rehearsals() -> dict[str, Any]:
+    """列出全部回滚预演批次，供跨回滚单核对恢复计划。"""
+    items = rehearsal_service.list_rehearsals()
+    return {"module": "rollback", "total": len(items), "items": items}
+
+
+@router.get("/{entry_id}/rehearsal", response_model=dict)
+def get_rehearsal(entry_id: int) -> dict[str, Any]:
+    """读取某条回滚记录最近一次预演批次；未预演过时给出可读说明。"""
+    batch = rehearsal_service.get_rehearsal(entry_id)
+    if batch is None:
+        raise HTTPException(status_code=404, detail=f"回滚记录 {entry_id} 尚未生成回滚预演")
+    return batch
+
+
+@router.post("/{entry_id}/rehearsal", response_model=ActionResult)
+def create_rehearsal(entry_id: int) -> ActionResult:
+    """提交回滚预演：联动回滚记录、表快照、血缘与迁移状态合成恢复计划。
+
+    恢复快照、下游表与未提交迁移来自同一预演批次，影响范围同时写回血缘影响清单。
+    """
+    batch, message = rehearsal_service.create_rehearsal(entry_id)
+    if batch is None:
+        return ActionResult(ok=False, message=message)
+    return ActionResult(ok=True, message=message, entry=batch)
 
 
 @router.get("/{entry_id}", response_model=dict)

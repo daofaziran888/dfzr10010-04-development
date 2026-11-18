@@ -33,3 +33,22 @@ body { margin: 0; background: #f6f8fb; color: #1f2937; }
 .link { border: none; background: none; color: var(--brand); cursor: pointer; padding: 0; }
 .page-foot { display: flex; justify-content: space-between; margin-top: 8px; font-size: 12px; color: var(--muted); }
 .error-text { color: #b42318; }
+.tag { display: inline-block; border-radius: 10px; padding: 1px 8px; font-size: 12px; border: 1px solid var(--border); }
+.tag.ok { color: #067647; background: #ecfdf3; border-color: #abefc6; }
+.tag.warn { color: #b54708; background: #fffaeb; border-color: #fedf89; }
+.tag.muted { color: var(--muted); background: #f1f5f9; }
+.drawer-mask { position: fixed; inset: 0; background: rgba(15, 23, 42, 0.45); z-index: 20; }
+.drawer { position: fixed; top: 0; right: 0; width: 760px; max-width: 92vw; height: 100vh; background: #fff; z-index: 21; padding: 18px 22px; overflow-y: auto; box-shadow: -8px 0 24px rgba(15, 23, 42, 0.18); }
+.drawer-head { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px; }
+.drawer-head h3 { margin: 0 0 4px; font-size: 16px; }
+.drawer-head .sub { color: var(--muted); font-size: 12px; }
+.drawer-section { margin-bottom: 18px; }
+.drawer-section h4 { font-size: 13px; margin: 0 0 8px; padding-left: 8px; border-left: 3px solid var(--brand); }
+.kv-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px 16px; font-size: 13px; }
+.kv-grid .k { color: var(--muted); }
+.check-list { list-style: none; margin: 0; padding: 0; font-size: 13px; }
+.check-list li { padding: 4px 0; border-bottom: 1px dashed var(--border); }
+.scope-note { background: #f8fafc; border: 1px solid var(--border); border-radius: 6px; padding: 8px 10px; font-size: 12px; color: var(--muted); line-height: 1.7; }
+.sub-table { width: 100%; border-collapse: collapse; background: #fff; }
+.sub-table th, .sub-table td { border: 1px solid var(--border); padding: 6px 8px; font-size: 12px; text-align: left; vertical-align: top; }
+.sub-table th { background: #f8fafc; }

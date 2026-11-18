@@ -14,6 +14,11 @@ class Store:
         self._tables: dict[str, list[dict[str, Any]]] = {
             name: [dict(row) for row in rows] for name, rows in SEED_ROWS.items()
         }
+        # 回滚预演批次：key 为回滚记录 id，value 为最近一次预演结果。
+        self._rehearsals: dict[int, dict[str, Any]] = {}
+        # 血缘影响清单：预演发布后写回，回滚列表与血缘页面共用这一份数据。
+        self._lineage_impacts: list[dict[str, Any]] = []
+        self._rehearsal_seq = 0
 
     def module_names(self) -> list[str]:
         return sorted(self._tables)
@@ -26,6 +31,49 @@ class Store:
             if int(row.get("id", 0)) == entry_id:
                 return row
         return None
+
+    def next_rehearsal_seq(self) -> int:
+        self._rehearsal_seq += 1
+        return self._rehearsal_seq
+
+    def save_rehearsal(self, rollback_id: int, batch: dict[str, Any]) -> None:
+        self._rehearsals[rollback_id] = batch
+
+    def get_rehearsal(self, rollback_id: int) -> dict[str, Any] | None:
+        return self._rehearsals.get(rollback_id)
+
+    def list_rehearsals(self) -> list[dict[str, Any]]:
+        return list(self._rehearsals.values())
+
+    def replace_lineage_impacts(
+        self, rollback_id: int, impacts: list[dict[str, Any]]
+    ) -> None:
+        """同一条回滚记录重复预演时，覆盖旧结论而不是追加，保证只发布一份完整边界结果。"""
+        self._lineage_impacts = [
+            row for row in self._lineage_impacts
+            if int(row.get("回滚记录id", -1)) != rollback_id
+        ]
+        for row in impacts:
+            published = dict(row)
+            published["回滚记录id"] = rollback_id
+            self._lineage_impacts.append(published)
+
+    def lineage_impacts(self, rollback_id: int | None = None) -> list[dict[str, Any]]:
+        if rollback_id is None:
+            return list(self._lineage_impacts)
+        return [
+            row for row in self._lineage_impacts
+            if int(row.get("回滚记录id", -1)) == rollback_id
+        ]
+
+    def reset(self) -> None:
+        """恢复种子数据并清空预演产物，供测试用例之间隔离。"""
+        self._tables = {
+            name: [dict(row) for row in rows] for name, rows in SEED_ROWS.items()
+        }
+        self._rehearsals = {}
+        self._lineage_impacts = []
+        self._rehearsal_seq = 0
 
     def overview(self) -> dict[str, object]:
         modules: list[dict[str, object]] = []

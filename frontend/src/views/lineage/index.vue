@@ -3,7 +3,7 @@
     <header class="page-head">
       <div>
         <h2>湖仓血缘追踪管理</h2>
-        <p class="page-desc">维护湖仓血缘的上游下游追溯、字段映射与批次记录，为湖仓血缘追踪提供可追溯的数据工程流程。</p>
+        <p class="page-desc">维护湖仓血缘的上游下游追溯、字段映射与批次记录；回滚预演发布的影响范围在本页核对，版本结论与回滚列表入口保持一致。</p>
       </div>
       <div class="page-actions">
         <button class="btn primary" type="button" @click="openCreate">登记血缘记录</button>
@@ -18,7 +18,49 @@
       </article>
     </div>
 
-    <form class="filter-bar" @submit.prevent="reload">
+    <div class="drawer-section">
+      <h4>血缘影响清单（回滚预演发布）</h4>
+      <form class="filter-bar" @submit.prevent="loadImpacts">
+        <label class="filter-item">
+          <span>按表名或回滚记录编号检索</span>
+          <input v-model="impactKeyword" placeholder="如 finance_ledger / ROLL-20261118-01" />
+        </label>
+        <button class="btn" type="submit">核对影响范围</button>
+        <button class="btn ghost" type="button" @click="resetImpactFilter">重置条件</button>
+        <span class="sub" style="color: var(--muted); font-size: 12px">
+          与回滚列表的影响详情读取同一份预演批次数据
+        </span>
+      </form>
+
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th v-for="column in impactColumns" :key="column">{{ column }}</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="row in impactRows" :key="`${String(row['预演批次号'])}-${String(row['下游表名'])}`">
+            <td v-for="column in impactColumns" :key="column">
+              <span v-if="column === '恢复结论'" :class="['tag', row[column] === '可恢复' ? 'ok' : 'warn']">
+                {{ row[column] ?? '—' }}
+              </span>
+              <template v-else>{{ row[column] ?? '—' }}</template>
+            </td>
+          </tr>
+          <tr v-if="!impactRows.length">
+            <td :colspan="impactColumns.length" class="empty-state">
+              暂无回滚影响范围，请先在「数据回滚恢复」页面提交回滚预演
+            </td>
+          </tr>
+        </tbody>
+      </table>
+      <footer class="page-foot">
+        <span>共 {{ impactTotal }} 条血缘影响记录</span>
+        <span v-if="impactError" class="error-text">{{ impactError }}</span>
+      </footer>
+    </div>
+
+    <form class="filter-bar" @submit.prevent="reload" style="margin-top: 18px">
       <label v-for="field in filterFields" :key="field" class="filter-item">
         <span>{{ field }}</span>
         <input v-model="filters[field]" :placeholder="`按${field}检索`" />
@@ -72,8 +114,21 @@ type Row = Record<string, string | number | null>
 const ENDPOINT = '/api/lineage'
 const columns = ["记录编号", "上游表名", "下游表名", "转换类型", "字段映射", "操作时间", "操作批次", "记录状态"]
 const actions = ["关联血缘", "标记过期", "清理记录"]
-const statuses = ["已记录", "已关联", "已过期", "已清理"]
 const stats = [{"label": "血缘记录总数", "value": 0}, {"label": "已关联记录", "value": 0}, {"label": "已过期记录", "value": 0}]
+
+const impactColumns = [
+  "预演批次号",
+  "回滚记录编号",
+  "上游表名",
+  "回滚版本",
+  "下游表名",
+  "恢复结论",
+  "预演采用版本",
+  "操作批次",
+  "关联迁移批次",
+  "待处理说明",
+  "版本结论",
+]
 
 const rows = ref<Row[]>([])
 const total = ref(0)
@@ -81,9 +136,19 @@ const errorMessage = ref('')
 const filters = ref<Record<string, string>>({})
 const filterFields = columns.slice(0, 3)
 
+const impactRows = ref<Row[]>([])
+const impactTotal = ref(0)
+const impactError = ref('')
+const impactKeyword = ref('')
+
 function resetFilters() {
   filters.value = {}
   void reload()
+}
+
+function resetImpactFilter() {
+  impactKeyword.value = ''
+  void loadImpacts()
 }
 
 function exportRows() {
@@ -110,6 +175,25 @@ async function runAction(action: string, row: Row) {
   }
 }
 
+async function loadImpacts() {
+  impactError.value = ''
+  const query = new URLSearchParams()
+  if (impactKeyword.value) {
+    query.set('keyword', impactKeyword.value)
+  }
+  try {
+    const response = await request(`${ENDPOINT}/impacts?${query.toString()}`)
+    if (!response.ok) {
+      throw new Error('血缘影响清单读取失败')
+    }
+    const payload = await response.json()
+    impactRows.value = payload.items ?? []
+    impactTotal.value = payload.total ?? impactRows.value.length
+  } catch (error) {
+    impactError.value = error instanceof Error ? error.message : '血缘影响清单读取失败'
+  }
+}
+
 async function reload() {
   errorMessage.value = ''
   const query = new URLSearchParams(filters.value as Record<string, string>).toString()
@@ -126,5 +210,8 @@ async function reload() {
   }
 }
 
-onMounted(reload)
+onMounted(() => {
+  void reload()
+  void loadImpacts()
+})
 </script>
